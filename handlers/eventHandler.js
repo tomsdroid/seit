@@ -1,9 +1,13 @@
 const { WebhookClient, EmbedBuilder } = require('discord.js');
 const moment = require('moment-timezone');
+const axios = require('axios');
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+// Mengimpor resource loginInstagram sesuai file yang Anda berikan
+const { loginInstagram } = require('../features/igLogin');
+
 module.exports = async (ctx) => {
-    // --- TAMBAHAN: Jam Operasional ---
+    // 1. Cek Jam Operasional
     const now = moment().tz(process.env.TIMEZONE);
     const start = moment.tz(process.env.START_TIME, "HH:mm", process.env.TIMEZONE);
     const end = moment.tz(process.env.END_TIME, "HH:mm", process.env.TIMEZONE);
@@ -12,27 +16,24 @@ module.exports = async (ctx) => {
         return ctx.reply("💤 <b>Bot sedang istirahat.</b>\nAbaikan semuanya, bot kembali beroperasi besok pagi.", { parse_mode: 'HTML' });
     }
 
-    if (ctx.chat.title !== process.env.SOURCE_GROUP_NAME) return;
-    if (!ctx.message.photo) return;
+    // Filter Sumber & Media
+    if (ctx.chat.title !== process.env.SOURCE_GROUP_NAME || !ctx.message.photo) return;
 
     const caption = ctx.message.caption || "";
     if (!caption.toLowerCase().includes("daftar sekarang") && !caption.toLowerCase().includes("link pendaftaran")) {
-        return ctx.reply("⚠️ Caption harus ada keyword 'Daftar Sekarang'!");
+        return ctx.reply("⚠️ Caption wajib ada 'Daftar Sekarang'!");
     }
 
     try {
         const photoId = ctx.message.photo.pop().file_id;
-        
-        // TAMBAHAN: Get Image URL untuk Discord
         const fileLink = await ctx.telegram.getFileLink(photoId);
         const imageUrl = fileLink.href;
 
         const rawDb = await ctx.db.get('seit_bot_db');
         const db = rawDb ? JSON.parse(rawDb) : { groups: [] };
+        let success = 0; let fail = 0;
 
-        let success = 0;
-        let fail = 0;
-
+        // --- A. BROADCAST TELEGRAM ---
         for (const group of db.groups) {
             try {
                 await ctx.telegram.sendPhoto(group.id, photoId, {
@@ -42,13 +43,10 @@ module.exports = async (ctx) => {
                 });
                 success++;
             } catch (e) { fail++; }
-
-            // Jeda 3-5 detik (Sesuai script awal)
-            const waitTime = Math.floor(Math.random() * (5000 - 3000 + 1)) + 3000;
-            await delay(waitTime);
+            await delay(Math.floor(Math.random() * 2000) + 3000);
         }
 
-        // --- TAMBAHAN: Discord Embed dengan Foto ---
+        // --- B. BROADCAST DISCORD ---
         const discord = new WebhookClient({ url: process.env.DISCORD_WEBHOOK_URL });
         const embed = new EmbedBuilder()
             .setTitle('📢 INFO EVENT I.T BARU')
@@ -56,21 +54,41 @@ module.exports = async (ctx) => {
             .setColor('#0099ff')
             .setImage(imageUrl)
             .setTimestamp();
-        
-        await discord.send({ embeds: [embed] });
+        await discord.send({ embeds: [embed] }).catch(() => {});
 
-        // LOG KE OWNER
-        const logMessage = 
-            `📊 <b>LAPORAN BROADCAST</b>\n` +
+        // --- C. UPLOAD INSTAGRAM (Menggunakan igLogin.js yang Anda Berikan) ---
+        let igStatus = "Pending";
+        try {
+            // Memanggil fungsi loginInstagram() sesuai resource Anda
+            const ig = await loginInstagram();
+
+            // Download gambar ke Buffer menggunakan axios
+            const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+            const imageBuffer = Buffer.from(response.data, 'binary');
+
+            // Publish ke Feed Instagram
+            await ig.publish.photo({
+                file: imageBuffer,
+                caption: caption,
+            });
+            igStatus = "✅ Terbit";
+        } catch (e) {
+            igStatus = "❌ Gagal: " + e.message;
+        }
+
+        // --- D. LAPORAN KE OWNER ---
+        const report = 
+            `📊 <b>LAPORAN BROADCAST SEIT</b>\n` +
             `━━━━━━━━━━━━━━━\n` +
-            `✅ Sukses: <b>${success}</b> grup\n` +
-            `❌ Gagal: <b>${fail}</b> grup\n` +
+            `✅ Telegram: <b>${success}</b> Grup\n` +
+            `✅ Discord: <b>Terkirim</b>\n` +
+            `📸 Instagram: <b>${igStatus}</b>\n` +
+            `━━━━━━━━━━━━━━━\n` +
             `👤 Oleh: ${ctx.from.first_name}`;
 
-        await ctx.telegram.sendMessage(ctx.ownerId, logMessage, { parse_mode: 'HTML' });
-        ctx.reply("✅ Event berhasil di-broadcast!");
+        await ctx.telegram.sendMessage(ctx.ownerId, report, { parse_mode: 'HTML' });
 
     } catch (err) {
-        console.error("Broadcast Error:", err);
+        console.error("Master Error:", err.message);
     }
 };
