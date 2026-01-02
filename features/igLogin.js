@@ -1,35 +1,41 @@
 const { IgApiClient } = require('instagram-private-api');
-const fs = require('fs');
-const path = require('path');
 
-const ig = new IgApiClient();
-const sessionPath = path.join(__dirname, '../session.json');
+module.exports.loginInstagram = async () => {
+    const ig = new IgApiClient();
+    
+    const username = process.env.INSTAGRAM_USERNAME;
+    const password = process.env.INSTAGRAM_PASSWORD;
 
-async function loginInstagram() {
-    ig.state.generateDevice(process.env.IG_USERNAME);
-
-    // Cek apakah ada sesi yang tersimpan
-    if (fs.existsSync(sessionPath)) {
-        const sessionData = JSON.parse(fs.readFileSync(sessionPath, 'utf-8'));
-        await ig.state.importSettings(sessionData);
-        console.log('🔄 Menggunakan sesi Instagram yang ada...');
+    // Proteksi jika variabel kosong
+    if (!username || !password) {
+        throw new Error("❌ Username atau Password IG di .env tidak ditemukan!");
     }
+
+    // WAJIB: Gunakan username untuk generate device
+    ig.state.generateDevice(username);
 
     try {
-        // Coba login (jika sesi mati, dia akan login ulang otomatis)
-        const loggedInUser = await ig.account.login(process.env.IG_USERNAME, process.env.IG_PASSWORD);
+        console.log(`🚀 Mencoba login IG: ${username}...`);
         
-        // Simpan sesi setelah login sukses
-        const serialized = await ig.state.serialize();
-        delete serialized.constants; // Bersihkan data yang tidak perlu
-        fs.writeFileSync(sessionPath, JSON.stringify(serialized));
+        await ig.simulate.preLoginFlow();
         
-        console.log(`✅ Instagram Login Berhasil sebagai: ${loggedInUser.username}`);
+        // Login menggunakan username dan password
+        const loggedInUser = await ig.account.login(username, password);
+        
+        // Penting: Simulasi aktivitas setelah login agar tidak dianggap bot/spam
+        process.nextTick(async () => await ig.simulate.postLoginFlow());
+        
+        console.log(`✅ Login Berhasil sebagai: ${loggedInUser.username}`);
         return ig;
-    } catch (err) {
-        console.error('❌ Gagal Login Instagram:', err.message);
-        throw err;
+    } catch (error) {
+        // Jika error karena 'Instagram Not Found' biasanya karena username salah ketik
+        if (error.message.includes('not found')) {
+            console.error('❌ Error: Akun tidak ditemukan. Pastikan INSTAGRAM_USERNAME di .env sudah benar (gunakan username, bukan nomor HP).');
+        } else if (error.message.includes('checkpoint')) {
+            console.error('⚠️ Tantangan Keamanan: Buka aplikasi IG di HP, klik "Ini Saya" / "It was me", lalu restart bot.');
+        } else {
+            console.error('❌ Gagal Login Instagram:', error.message);
+        }
+        throw error;
     }
-}
-
-module.exports = loginInstagram;
+};

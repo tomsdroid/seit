@@ -1,160 +1,76 @@
-const { EmbedBuilder, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const { Jimp } = require('jimp'); 
-const fs = require('fs');
-const path = require('path');
-const { autoFormatCaption } = require('../utils/formatter');
+const { WebhookClient, EmbedBuilder } = require('discord.js');
+const moment = require('moment-timezone');
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-/**
- * Fungsi untuk update file .env secara otomatis (Target Group & Topic)
- * Menyimpan dalam format ChatID atau ChatID:ThreadID
- */
-function updateEnvId(chatId, threadId) {
-    try {
-        const envPath = path.join(__dirname, '../.env');
-        let envContent = fs.readFileSync(envPath, 'utf8');
-        
-        const entry = threadId ? `${chatId}:${threadId}` : `${chatId}`;
-        const match = envContent.match(/TARGET_GROUPS=(.*)/);
-        let currentIds = match && match[1] ? match[1].split(',') : [];
+module.exports = async (ctx) => {
+    // --- TAMBAHAN: Jam Operasional ---
+    const now = moment().tz(process.env.TIMEZONE);
+    const start = moment.tz(process.env.START_TIME, "HH:mm", process.env.TIMEZONE);
+    const end = moment.tz(process.env.END_TIME, "HH:mm", process.env.TIMEZONE);
 
-        if (!currentIds.includes(entry)) {
-            currentIds.push(entry);
-            const newConfig = `TARGET_GROUPS=${currentIds.join(',')}`;
-            
-            if (match) {
-                envContent = envContent.replace(/TARGET_GROUPS=.*/, newConfig);
-            } else {
-                envContent += `\n${newConfig}`;
-            }
-
-            fs.writeFileSync(envPath, envContent);
-            console.log(`✅ [ENV UPDATED] Target Baru Tersimpan: ${entry}`);
-            process.env.TARGET_GROUPS = currentIds.join(',');
-        }
-    } catch (err) {
-        console.error('❌ Gagal update file .env:', err.message);
-    }
-}
-
-module.exports = async (ctx, ig, discordWebhook) => {
-    const chat = ctx.chat;
-    const threadId = ctx.message?.message_thread_id;
-
-    // --- 1. AUTO-SAVE ID GRUP & TOPIK ---
-    // Menyimpan ID grup tujuan selain grup sumber utama
-    if ((chat.type === 'group' || chat.type === 'supergroup') && chat.title !== process.env.SOURCE_GROUP_NAME) {
-        if (chat.type === 'supergroup' && threadId) {
-            updateEnvId(chat.id, threadId);
-        } else if (chat.type === 'group') {
-            updateEnvId(chat.id, null);
-        }
+    if (now.isBefore(start) || now.isAfter(end)) {
+        return ctx.reply("💤 <b>Bot sedang istirahat.</b>\nAbaikan semuanya, bot kembali beroperasi besok pagi.", { parse_mode: 'HTML' });
     }
 
-    // --- 2. FILTER SUMBER & VALIDASI KONTEN ---
-    if (chat.title !== process.env.SOURCE_GROUP_NAME) return;
+    if (ctx.chat.title !== process.env.SOURCE_GROUP_NAME) return;
     if (!ctx.message.photo) return;
 
-    const rawCaption = ctx.message.caption || "";
-
-    // Validasi Kata Kunci Wajib
-    const requiredKeywords = ["Daftar Sekarang", "Link Pendaftaran"];
-    const hasKeyword = requiredKeywords.some(keyword => 
-        rawCaption.toLowerCase().includes(keyword.toLowerCase())
-    );
-
-    if (!hasKeyword) {
-        return ctx.reply("⚠️ <b>Gagal Posting!</b>\nCaption wajib mengandung kata <i>'Daftar Sekarang'</i> atau <i>'Link Pendaftaran'</i>.", { parse_mode: 'HTML' });
+    const caption = ctx.message.caption || "";
+    if (!caption.toLowerCase().includes("daftar sekarang") && !caption.toLowerCase().includes("link pendaftaran")) {
+        return ctx.reply("⚠️ Caption harus ada keyword 'Daftar Sekarang'!");
     }
 
-    // Ekstraksi Link Pertama dari Caption (Regex)
-    const urlRegex = /(https?:\/\/[^\s]+)/g;
-    const foundLinks = rawCaption.match(urlRegex);
-    // Jika link tidak ditemukan, arahkan ke Instagram sebagai fallback
-    const targetLink = foundLinks ? foundLinks[0] : 'https://www.instagram.com/shareevent.it';
-
-    const { tg, ig: igCaption } = autoFormatCaption(rawCaption);
-    const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
-    const outputPath = path.join(__dirname, `../ready_${photoId}.jpg`);
-
     try {
-        console.log('🔄 Memproses Event I.T (Multi-Platform)...');
-
-        // --- 3. PROSES GAMBAR (JIMP) ---
-        const link = await ctx.telegram.getFileLink(photoId);
-        const image = await Jimp.read(link.href);
+        const photoId = ctx.message.photo.pop().file_id;
         
-        // Resize Square 1080x1080 untuk Instagram & Discord
-        await image.cover({ w: 1080, h: 1080 });
-        await image.write(outputPath);
+        // TAMBAHAN: Get Image URL untuk Discord
+        const fileLink = await ctx.telegram.getFileLink(photoId);
+        const imageUrl = fileLink.href;
 
-        // --- 4. SIAPKAN KOMPONEN DISCORD (WEBHOOK) ---
-        const file = new AttachmentBuilder(outputPath, { name: 'event.jpg' });
-        
-        // Tombol Link Dinamis
-        const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-                .setLabel('Daftar Sekarang')
-                .setStyle(ButtonStyle.Link)
-                .setURL(targetLink)
-        );
+        const rawDb = await ctx.db.get('seit_bot_db');
+        const db = rawDb ? JSON.parse(rawDb) : { groups: [] };
 
-        const embed = new EmbedBuilder()
-            .setTitle('📢 SAHRE EVENT I.T TERBARU')
-            .setURL(targetLink) // Judul Embed bisa diklik
-            .setDescription(rawCaption)
-            .setColor(0x0099ff)
-            .setImage('attachment://event.jpg')
-            .setFooter({ text: 'S.E.I.T Automation Bot' })
-            .setTimestamp();
+        let success = 0;
+        let fail = 0;
 
-        // --- 5. EKSEKUSI PENGIRIMAN ---
-        const targetEntries = process.env.TARGET_GROUPS ? process.env.TARGET_GROUPS.split(',') : [];
-        const tasks = [];
-
-        // Task A: Kirim ke Semua Target Grup Telegram
-        targetEntries.forEach(entry => {
-            const [tChatId, tThreadId] = entry.split(':');
-            tasks.push(
-                ctx.telegram.sendPhoto(tChatId.trim(), photoId, {
-                    caption: tg,
+        for (const group of db.groups) {
+            try {
+                await ctx.telegram.sendPhoto(group.id, photoId, {
+                    caption: `<b>📢 INFO EVENT IT</b>\n\n${caption}`,
                     parse_mode: 'HTML',
-                    message_thread_id: tThreadId ? parseInt(tThreadId) : undefined
-                })
-            );
-        });
+                    message_thread_id: group.topic_id
+                });
+                success++;
+            } catch (e) { fail++; }
 
-        // Task B: Kirim ke Discord Webhook (Embed + File + Button)
-        tasks.push(discordWebhook.send({
-            embeds: [embed],
-            files: [file],
-            components: [row]
-        }));
+            // Jeda 3-5 detik (Sesuai script awal)
+            const waitTime = Math.floor(Math.random() * (5000 - 3000 + 1)) + 3000;
+            await delay(waitTime);
+        }
 
-        // Task C: Kirim ke Instagram
-        tasks.push(ig.publish.photo({
-            file: fs.readFileSync(outputPath),
-            caption: igCaption
-        }));
+        // --- TAMBAHAN: Discord Embed dengan Foto ---
+        const discord = new WebhookClient({ url: process.env.DISCORD_WEBHOOK_URL });
+        const embed = new EmbedBuilder()
+            .setTitle('📢 INFO EVENT I.T BARU')
+            .setDescription(caption)
+            .setColor('#0099ff')
+            .setImage(imageUrl)
+            .setTimestamp();
+        
+        await discord.send({ embeds: [embed] });
 
-        // Jalankan semua task secara paralel
-        await Promise.all(tasks);
+        // LOG KE OWNER
+        const logMessage = 
+            `📊 <b>LAPORAN BROADCAST</b>\n` +
+            `━━━━━━━━━━━━━━━\n` +
+            `✅ Sukses: <b>${success}</b> grup\n` +
+            `❌ Gagal: <b>${fail}</b> grup\n` +
+            `👤 Oleh: ${ctx.from.first_name}`;
 
-        // --- 6. NOTIFIKASI SUKSES ---
-        ctx.reply('✅ <b>Event Berhasil Terverifikasi & Diposting!</b>', { 
-            parse_mode: 'HTML',
-            reply_to_message_id: ctx.message.message_id,
-            reply_markup: {
-                inline_keyboard: [
-                    [{ text: '➕ Lihat & Ikuti Instagram Kami', url: 'https://www.instagram.com/shareevent.it' }]
-                ]
-            }
-        });
+        await ctx.telegram.sendMessage(ctx.ownerId, logMessage, { parse_mode: 'HTML' });
+        ctx.reply("✅ Event berhasil di-broadcast!");
 
-    } catch (error) {
-        console.error('❌ [EVENT HANDLER ERROR]:', error.message);
-        ctx.reply(`❌ Gagal memproses event: ${error.message}`);
-    } finally {
-        // Hapus file sementara agar tidak memenuhi penyimpanan Termux
-        if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+    } catch (err) {
+        console.error("Broadcast Error:", err);
     }
 };

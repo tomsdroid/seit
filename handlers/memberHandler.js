@@ -1,74 +1,46 @@
 module.exports = async (ctx) => {
-    try {
-        // 1. Ambil data member dari berbagai kemungkinan event (chat_member atau new_chat_members)
-        const update = ctx.chatMember || ctx.myChatMember;
-        const newMembersFromMsg = ctx.message?.new_chat_members;
+    // --- TAMBAHAN: Log Join/Kick & Auto Delete DB ---
+    if (ctx.myChatMember) {
+        const update = ctx.myChatMember;
+        const chat = update.chat;
+        const status = update.new_chat_member.status;
 
-        let targetUser = null;
-
-        // Kondisi A: Event berasal dari update status (chat_member)
-        if (update && update.new_chat_member) {
-            // Hanya proses jika statusnya adalah 'member' (baru gabung)
-            if (update.new_chat_member.status === 'member') {
-                targetUser = update.new_chat_member.user;
-            }
-        } 
-        // Kondisi B: Event berasal dari pesan sistem (new_chat_members)
-        else if (newMembersFromMsg && newMembersFromMsg.length > 0) {
-            targetUser = newMembersFromMsg[0];
+        if (status === 'administrator' || status === 'member') {
+            const logJoin = `✅ <b>BOT TELAH DI JOIN</b>\n━━━━━━━━━━━━━━━\n📌 Grup: ${chat.title}\n🆔 ID: <code>${chat.id}</code>\n👤 Oleh: ${update.from.first_name}`;
+            await ctx.telegram.sendMessage(ctx.ownerId, logJoin, { parse_mode: 'HTML' }).catch(() => {});
         }
 
-        // 2. Validasi: Jika tidak ada user atau yang gabung adalah Bot, abaikan
-        if (!targetUser || targetUser.is_bot) return;
-
-        // 3. Validasi Nama Grup: Pastikan berasal dari grup sumber di .env
-        const chatTitle = ctx.chat?.title;
-        if (chatTitle !== process.env.SOURCE_GROUP_NAME) return;
-
-        const userId = targetUser.id;
-        const firstName = targetUser.first_name;
-
-        // 4. Siapkan Pesan Tutorial
-        const tutorialMessage = `<b>Selamat Datang di Share Event I.T!</b> 🚀
-
-Agar event kamu otomatis terposting ke <b>Instagram, Discord, dan Grup Rekanan</b>, silakan ikuti panduan berikut:
-
-<b>Cara Posting Event:</b>
-1️⃣ <b>Kirim Foto</b> poster event (Gunakan rasio 1:1 agar hasil maksimal).
-2️⃣ <b>Isi Caption</b> dengan detail lengkap.
-3️⃣ <b>Wajib Ada Kata Kunci:</b> Sertakan kata <i>"Daftar Sekarang"</i> atau <i>"Link Pendaftaran"</i> di dalam caption.
-4️⃣ <b>Sertakan Link:</b> Pastikan ada link pendaftaran (Contoh: https://link.com).
-
-<b>Contoh:</b>
-<blockquote>Webinar AI 2024
-Daftar Sekarang di: https://bit.ly/daftar-ai</blockquote>
-
-<i>Bot akan menolak postingan jika syarat di atas tidak terpenuhi.</i>`;
-
-
-        // 5. Kirim DM
-        await ctx.telegram.sendMessage(userId, tutorialMessage, { 
-            parse_mode: 'HTML',
-            reply_markup: {
-                inline_keyboard: [
-                    [
-                        { 
-                            text: '👤 Hubungi Admin!', 
-                            url: 'https://t.me/tomsdroid007' 
-                        }
-                    ]
-                ]
+        if (status === 'kicked' || status === 'left') {
+            // Hapus dari DB
+            let raw = await ctx.db.get('seit_bot_db');
+            if (raw) {
+                let db = JSON.parse(raw);
+                db.groups = db.groups.filter(g => g.id !== chat.id);
+                await ctx.db.set('seit_bot_db', JSON.stringify(db));
             }
-        });
+            const logKick = `💢 <b>BOT TELAH DI KICK</b>\n━━━━━━━━━━━━━━━\n📌 Grup: ${chat.title}\n🆔 ID: <code>${chat.id}</code>\n👤 Oleh: ${update.from.first_name}\n\n⚠️ <i>Data grup dihapus dari database.</i>`;
+            await ctx.telegram.sendMessage(ctx.ownerId, logKick, { parse_mode: 'HTML' }).catch(() => {});
+        }
+    }
 
-        console.log(`✅ [DM SENT] Berhasil mengirim tutorial ke ${firstName}`);
+    // --- STRUKTUR ASLI: Gatekeeper Fitur No. 4 & 5 ---
+    const update = ctx.chatMember || ctx.myChatMember;
+    const chat = ctx.chat;
+    if (!chat || chat.title !== process.env.SOURCE_GROUP_NAME) return;
 
-    } catch (err) {
-        // Jika error 403 (Forbidden), berarti user belum menekan /start di bot
-        if (err.response?.error_code === 403) {
-            console.log(`⚠️ [DM FAILED] ${ctx.from?.first_name} belum memulai bot.`);
+    if (update && update.new_chat_member.status === 'member') {
+        const userId = update.new_chat_member.user.id;
+        const isVerified = await ctx.db.get(`verify:${userId}`);
+
+        if (!isVerified) {
+            try {
+                await ctx.banChatMember(userId);
+                await ctx.unbanChatMember(userId);
+                return ctx.telegram.sendMessage(userId, "⚠️ Akses Ditolak! Verifikasi di bot dulu.");
+            } catch (e) { console.log(e.message); }
         } else {
-            console.error("❌ [HANDLER ERROR]:", err.message);
+            const guide = `<b>Selamat Datang!</b>\nKirim poster event kamu di sini.`;
+            await ctx.telegram.sendMessage(userId, guide, { parse_mode: 'HTML' }).catch(() => {});
         }
     }
 };

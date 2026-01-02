@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SEIT Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #0b0f1a; }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); }
+    </style>
+</head>
+<body class="text-slate-200 antialiased">
+
+    <nav class="border-b border-slate-800 glass sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
+                    <span class="font-bold text-white">S</span>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold tracking-tight text-white">SEIT <span class="text-blue-500">SYSTEM</span></h1>
+                    <p class="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">Automation</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 bg-green-500/10 px-3 py-1.5 rounded-full border border-green-500/20">
+                <span class="relative flex h-2 w-2">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                </span>
+                <span class="text-xs font-bold text-green-400 tracking-wide">BOT ONLINE</span>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-6xl mx-auto px-6 py-10">
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+            <div class="glass p-6 rounded-3xl border border-slate-800 shadow-sm transition hover:border-blue-500/50">
+                <p class="text-slate-400 text-xs font-semibold uppercase mb-2 tracking-wider">Total Grup Partner</p>
+                <div class="flex items-end gap-2">
+                    <h3 class="text-5xl font-black text-white"><%= totalGroups %></h3>
+                    <span class="text-blue-500 font-bold text-sm mb-1">Terhubung</span>
+                </div>
+            </div>
+            <div class="glass p-6 rounded-3xl border border-slate-800 shadow-sm transition hover:border-indigo-500/50">
+                <p class="text-slate-400 text-xs font-semibold uppercase mb-2 tracking-wider">Platform Aktif</p>
+                <div class="flex gap-2">
+                    <span class="bg-blue-600/20 text-blue-400 px-3 py-1 rounded-lg text-xs font-bold">TELEGRAM</span>
+                    <span class="bg-indigo-600/20 text-indigo-400 px-3 py-1 rounded-lg text-xs font-bold">DISCORD</span>
+                    <span class="bg-pink-600/20 text-pink-400 px-3 py-1 rounded-lg text-xs font-bold">INSTAGRAM</span>
+                </div>
+                <p class="mt-4 text-[11px] text-slate-500 italic">Otomatis forward ke semua platform</p>
+            </div>
+            <div class="glass p-6 rounded-3xl border border-slate-800 shadow-sm transition hover:border-slate-600">
+                <p class="text-slate-400 text-xs font-semibold uppercase mb-2 tracking-wider">Owner / ID</p>
+                <h3 class="text-xl font-bold text-white"><%= ownerId %></h3>
+                <p class="text-[11px] text-blue-400 font-mono mt-2 underline">Authorized Access Only</p>
+            </div>
+        </div>
+
+        <div class="glass rounded-3xl border border-slate-800 shadow-2xl overflow-hidden">
+            <div class="px-8 py-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/40">
+                <div>
+                    <h2 class="text-xl font-bold text-white">Database Jaringan</h2>
+                    <p class="text-xs text-slate-400 mt-1">Daftar grup yang telah melakukan /register</p>
+                </div>
+                <button onclick="location.reload()" class="bg-slate-800 hover:bg-slate-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-95 shadow-lg border border-slate-700">
+                    REFRESH DATA
+                </button>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="w-full text-left">
+                    <thead>
+                        <tr class="bg-slate-900/50 text-slate-500 text-[10px] uppercase tracking-[0.2em]">
+                            <th class="px-8 py-5 font-bold">Nama Grup</th>
+                            <th class="px-8 py-5 font-bold">ID Telegram</th>
+                            <th class="px-8 py-5 font-bold text-center">Tipe Chat</th>
+                            <th class="px-8 py-5 font-bold text-right">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-800/50">
+                        <% if (groups.length > 0) { %>
+                            <% groups.forEach(function(group) { %>
+                            <tr class="hover:bg-slate-800/20 transition">
+                                <td class="px-8 py-6">
+                                    <div class="font-bold text-white text-sm"><%= group.name %></div>
+                                    <div class="text-[10px] text-blue-500 font-bold mt-0.5"><%= group.topic_id ? 'TOPIC ID: ' + group.topic_id : 'GENERAL CHAT' %></div>
+                                </td>
+                                <td class="px-8 py-6">
+                                    <span class="font-mono text-xs bg-slate-900 px-2 py-1 rounded text-slate-400 border border-slate-800">
+                                        <%= group.id %>
+                                    </span>
+                                </td>
+                                <td class="px-8 py-6 text-center">
+                                    <span class="text-[10px] font-black tracking-tighter bg-slate-800 px-2 py-0.5 rounded text-slate-300">
+                                        <%= group.topic_id ? 'FORUM' : 'GROUP' %>
+                                    </span>
+                                </td>
+                                <td class="px-8 py-6">
+                                    <div class="flex justify-end items-center gap-2">
+                                        <div class="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                                        <span class="text-[10px] font-bold text-green-500 uppercase">Linked</span>
+                                    </div>
+                                </td>
+                            </tr>
+                            <% }); %>
+                        <% } else { %>
+                            <tr>
+                                <td colspan="4" class="px-8 py-20 text-center">
+                                    <div class="flex flex-col items-center">
+                                        <div class="w-12 h-12 bg-slate-800 rounded-full flex items-center justify-center mb-4 text-slate-500 font-bold italic">?</div>
+                                        <p class="text-slate-500 text-sm font-medium">Belum ada grup yang terdaftar.</p>
+                                        <p class="text-[10px] text-slate-600 mt-1 uppercase tracking-widest">Gunakan command /register di grup tujuan</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        <% } %>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <footer class="mt-10 text-center">
+            <p class="text-slate-600 text-[10px] uppercase tracking-[0.3em] font-bold italic">SEIT Automation Engine v2.0</p>
+        </footer>
+    </main>
+
+</body>
+</html>
