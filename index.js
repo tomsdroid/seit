@@ -78,13 +78,8 @@ async function main() {
 
         // 1. Jalankan Dashboard Express
         startServer(bot, redis);
-
-        // 2. Jalankan Bot Telegram
-        await bot.launch({
-            allowedUpdates: ['message', 'chat_member', 'new_chat_members', 'callback_query']
-        });
-
-        // 3. Kirim Log Startup ke Owner
+        
+        // 2. Kirim Log Startup ke Owner
         const startLog = 
             `✅ <b>SYSTEM SEIT ONLINE</b>\n` +
             `━━━━━━━━━━━━━━━\n` +
@@ -95,6 +90,11 @@ async function main() {
 
         await bot.telegram.sendMessage(bot.context.ownerId, startLog, { parse_mode: 'HTML' });
         console.log('🚀 SEIT System Online & Log sent to Owner');
+
+        // 3. Jalankan Bot Telegram
+        await bot.launch({
+            allowedUpdates: ['message', 'chat_member', 'new_chat_members', 'callback_query']
+        });
 
     } catch (error) {
         console.error('❌ Gagal menjalankan aplikasi:', error.message);
