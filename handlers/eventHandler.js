@@ -13,7 +13,10 @@ module.exports = async (ctx) => {
     const end = moment.tz(process.env.END_TIME, "HH:mm", process.env.TIMEZONE);
 
     if (now.isBefore(start) || now.isAfter(end)) {
-        return ctx.reply("💤 <b>Bot sedang istirahat.</b>\nAbaikan semuanya, bot kembali beroperasi besok pagi.", { parse_mode: 'HTML' });
+        const msg = await ctx.reply("💤 <b>Bot sedang istirahat.</b>\nAbaikan semuanya, bot kembali beroperasi besok pagi.", { parse_mode: 'HTML' });
+        // Auto hapus dalam 3 detik
+        setTimeout(() => ctx.telegram.deleteMessage(ctx.chat.id, msg.message_id).catch(() => {}), 3000);
+        return;
     }
 
     // Filter Sumber & Media
@@ -21,7 +24,10 @@ module.exports = async (ctx) => {
 
     const caption = ctx.message.caption || "";
     if (!caption.toLowerCase().includes("daftar sekarang") && !caption.toLowerCase().includes("link pendaftaran")) {
-        return ctx.reply("⚠️ Caption wajib ada 'Daftar Sekarang'!");
+        const msg = await ctx.reply("⚠️ Caption wajib ada 'Daftar Sekarang'!");
+        // Auto hapus dalam 3 detik
+        setTimeout(() => ctx.telegram.deleteMessage(ctx.chat.id, msg.message_id).catch(() => {}), 3000);
+        return;
     }
 
     try {
@@ -31,7 +37,7 @@ module.exports = async (ctx) => {
 
         const rawDb = await ctx.db.get('seit_bot_db');
         const db = rawDb ? JSON.parse(rawDb) : { groups: [] };
-        let success = 0; let fail = 0;
+        let success = 0;
 
         // --- A. BROADCAST TELEGRAM ---
         for (const group of db.groups) {
@@ -42,7 +48,7 @@ module.exports = async (ctx) => {
                     message_thread_id: group.topic_id
                 });
                 success++;
-            } catch (e) { fail++; }
+            } catch (e) { /* ignore fail */ }
             await delay(Math.floor(Math.random() * 2000) + 3000);
         }
 
@@ -56,17 +62,13 @@ module.exports = async (ctx) => {
             .setTimestamp();
         await discord.send({ embeds: [embed] }).catch(() => {});
 
-        // --- C. UPLOAD INSTAGRAM (Menggunakan igLogin.js yang Anda Berikan) ---
+        // --- C. UPLOAD INSTAGRAM (Menggunakan igLogin.js) ---
         let igStatus = "Pending";
         try {
-            // Memanggil fungsi loginInstagram() sesuai resource Anda
             const ig = await loginInstagram();
-
-            // Download gambar ke Buffer menggunakan axios
             const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
             const imageBuffer = Buffer.from(response.data, 'binary');
 
-            // Publish ke Feed Instagram
             await ig.publish.photo({
                 file: imageBuffer,
                 caption: caption,
@@ -77,6 +79,7 @@ module.exports = async (ctx) => {
         }
 
         // --- D. LAPORAN KE OWNER ---
+        // Laporan ke owner tidak dihapus otomatis agar owner punya riwayat
         const report = 
             `📊 <b>LAPORAN BROADCAST SEIT</b>\n` +
             `━━━━━━━━━━━━━━━\n` +
