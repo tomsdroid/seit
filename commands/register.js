@@ -8,7 +8,7 @@ module.exports = {
             try {
                 const botMember = await ctx.getChatMember(ctx.botInfo.id);
                 if (botMember.status !== 'administrator' && botMember.status !== 'creator') {
-                    return ctx.reply(
+                    const denMsg = await ctx.reply(
                         `╭─── <b>ACCESS DENIED</b>\n` +
                         `│\n` +
                         `├ 🛡️ <b>Reason:</b> <code>Bot Not Admin</code>\n` +
@@ -17,6 +17,12 @@ module.exports = {
                         `╰─────── <i>Bot memerlukan izin akses</i>`,
                         { parse_mode: 'HTML' }
                     );
+                    // Hapus pesan peringatan dalam 3 detik
+                    setTimeout(() => {
+                        ctx.telegram.deleteMessage(ctx.chat.id, denMsg.message_id).catch(() => {});
+                        ctx.deleteMessage().catch(() => {});
+                    }, 3000);
+                    return;
                 }
             } catch (e) {
                 console.error("Gagal verifikasi admin");
@@ -31,8 +37,12 @@ module.exports = {
         // Ambil nama topik jika ada
         let topicName = "General / No Topic";
         if (ctx.message.is_topic_message) {
-            const chatInfo = await ctx.getChat();
-            topicName = chatInfo.title || "Forum Topic"; 
+            try {
+                const chatInfo = await ctx.getChat();
+                topicName = chatInfo.title || "Forum Topic";
+            } catch (e) {
+                topicName = "Forum Topic";
+            }
         }
 
         try {
@@ -41,7 +51,12 @@ module.exports = {
 
             const isExist = db.groups.find(g => g.id === chatId && g.topic_id === topicId);
             if (isExist) {
-                return ctx.reply(`⚠️ <b>Grup/Topik ini sudah terdaftar.</b>`, { parse_mode: 'HTML' });
+                const existMsg = await ctx.reply(`⚠️ <b>Grup/Topik ini sudah terdaftar.</b>`, { parse_mode: 'HTML' });
+                setTimeout(() => {
+                    ctx.telegram.deleteMessage(ctx.chat.id, existMsg.message_id).catch(() => {});
+                    ctx.deleteMessage().catch(() => {});
+                }, 3000);
+                return;
             }
 
             db.groups.push({
@@ -55,7 +70,7 @@ module.exports = {
             await ctx.db.set('seit_bot_db', JSON.stringify(db));
 
             // 3. Respon Berhasil yang Estetik
-            await ctx.reply(
+            const successMsg = await ctx.reply(
                 `╭───  <b>REGISTRATION SUCCESS</b>\n` +
                 `│\n` +
                 `├  📂 <b>Group:</b> <code>${chatTitle}</code>\n` +
@@ -67,9 +82,21 @@ module.exports = {
                 { parse_mode: 'HTML' }
             );
 
+            // --- AUTO DELETE 3 DETIK ---
+            setTimeout(() => {
+                // Hapus pesan bot
+                ctx.telegram.deleteMessage(ctx.chat.id, successMsg.message_id).catch(() => {});
+                // Hapus pesan perintah admin (/register)
+                ctx.deleteMessage().catch(() => {});
+            }, 3000);
+
         } catch (error) {
             console.error('Register Error:', error);
-            await ctx.reply("❌ <b>Gagal mendaftarkan grup.</b>", { parse_mode: 'HTML' });
+            const errMsg = await ctx.reply("❌ <b>Gagal mendaftarkan grup.</b>", { parse_mode: 'HTML' });
+            setTimeout(() => {
+                ctx.telegram.deleteMessage(ctx.chat.id, errMsg.message_id).catch(() => {});
+                ctx.deleteMessage().catch(() => {});
+            }, 3000);
         }
     }
 };
