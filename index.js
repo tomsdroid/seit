@@ -56,13 +56,13 @@ async function main() {
         
         // 2. Kirim Log Startup ke Owner ID (5803538088)
         const startLog = 
-            `🚀 <b>SYSTEM SEIT DEPLOYED</b>\n` +
+            `🚀 <b>SYSTEM SEIT ONLINE</b>\n` +
             `━━━━━━━━━━━━━━━━━━\n` +
             `✨ <b>Status:</b> <code>Online & Synchronized</code>\n` +
             `📅 <b>Date  :</b> <code>${moment().tz("Asia/Jakarta").format('DD/MM/YYYY')}</code>\n` +
             `⏰ <b>Time  :</b> <code>${moment().tz("Asia/Jakarta").format('HH:mm:ss')} WIB</code>\n` +
             `━━━━━━━━━━━━━━━━━━\n` +
-            `💡 <i>Global Auto-delete is now disabled.</i>`;
+            `💡 <i>Sedang Memantau Group.</i>`;
 
         await bot.telegram.sendMessage(bot.context.ownerId, startLog, { parse_mode: 'HTML' });
         console.log('🚀 SEIT System Online & Log sent to Owner');

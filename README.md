@@ -5,8 +5,8 @@ _**S.E.I.T Bot**_ ini bisa menangkap postingan event dari sebuah grup SHARE EVEN
 ### ✨ Fitur Utama
 
 - **Multi-Platform Broadcast**: Sekali posting di Telegram, otomatis terbit di Instagram (@shareevent.it) dan Discord.
-- **Auto Group Discovery**: Bot otomatis mendeteksi dan menyimpan ID grup/topik baru ke .env saat dimasukkan ke grup rekanan.
-- **Smart Link Detection**: Secara otomatis mengambil link pendaftaran dari caption untuk dijadikan tombol klik di Discord.
+- **Auto Group Discovery**: Bot otomatis mendeteksi dan menyimpan ID grup/topik baru ke database saat dimasukkan ke grup rekanan.
+- **Smart Link Detection**: Secara otomatis mengambil link pendaftaran dari caption untuk dijadikan link judul / tombol klik di Discord.
 - **Validasi Konten**: Memastikan setiap postingan memiliki kata kunci wajib (Daftar Sekarang/Link Pendaftaran).
 - **Image Processing**: Mengoptimalkan gambar menggunakan Jimp menjadi rasio 1:1 (Square) agar sesuai dengan standar Instagram.
 - **Auto DM Tutorial**: Mengirimkan instruksi cara posting kepada member baru yang bergabung di grup utama.

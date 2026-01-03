@@ -3,7 +3,7 @@ const { Markup } = require('telegraf');
 module.exports = {
     name: 'panduan',
     execute: async (ctx) => {
-        const dashboardUrl = process.env.DASHBOARD_URL || 'https://palembangpy.com';
+        const dashboardUrl = process.env.DASHBOARD_URL || 'https://palembangpy.koyeb.app';
         
         const text = `📖 *PANDUAN ADMIN & PENGGUNAAN BOT*\n\n` +
             `🛡️ *KHUSUS ADMIN GRUP:*\n` +
