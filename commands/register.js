@@ -3,9 +3,21 @@ const moment = require('moment-timezone');
 module.exports = {
     name: 'register',
     execute: async (ctx) => {
-        // 1. Cek Status Admin
+        // 1. Validasi Pengirim (Hanya Admin yang diproses)
         if (ctx.chat.type !== 'private') {
             try {
+                const member = await ctx.getChatMember(ctx.from.id);
+                const isAdmin = ['administrator', 'creator'].includes(member.status);
+                
+                // Tambahan: Owner (ID: 5803538088) selalu dianggap admin
+                const isOwner = ctx.from.id === 5803538088;
+
+                if (!isAdmin && !isOwner) {
+                    // Jika bukan admin/owner, hapus pesan perintahnya dan abaikan
+                    return ctx.deleteMessage().catch(() => {});
+                }
+
+                // 2. Cek Status Bot (Harus Admin untuk kelancaran sistem)
                 const botMember = await ctx.getChatMember(ctx.botInfo.id);
                 if (botMember.status !== 'administrator' && botMember.status !== 'creator') {
                     const denMsg = await ctx.reply(`⚠️ <b>Jadikan bot Admin terlebih dahulu!</b>`, { parse_mode: 'HTML' });
@@ -17,26 +29,21 @@ module.exports = {
                 }
             } catch (e) {
                 console.error("Gagal verifikasi admin");
+                return;
             }
         }
 
-        // 2. Logika Penangkapan Data (Nama Grup, Nama Topik, Thread ID)
+        // 3. Logika Penangkapan Data
         const chatId = ctx.chat.id;
         const chatTitle = ctx.chat.title || "Unknown Group";
         const topicId = ctx.message.message_thread_id || null;
         let topicName = "General / Non-Forum";
 
         try {
-            // Jika pesan berasal dari sebuah topik/thread
             if (topicId) {
-                // Mencoba menangkap nama topik dari reply_to_message (jika ada)
                 if (ctx.message.reply_to_message && ctx.message.reply_to_message.forum_topic_created) {
                     topicName = ctx.message.reply_to_message.forum_topic_created.name;
                 } else {
-                    /** * Jika tidak ada dalam reply, kita asumsikan ini di Forum.
-                     * Karena API Telegram terbatas untuk ambil nama topik secara direct via ID saja,
-                     * kita simpan sebagai "Topic ID: #" atau Anda bisa kustom di dashboard.
-                     */
                     topicName = `Topic #${topicId}`; 
                 }
             }
@@ -44,7 +51,6 @@ module.exports = {
             const rawDb = await ctx.db.get('seit_bot_db');
             let db = rawDb ? JSON.parse(rawDb) : { groups: [] };
 
-            // Cek duplikasi berdasarkan ID Grup DAN ID Topik
             const isExist = db.groups.find(g => g.id === chatId && g.topic_id === topicId);
             if (isExist) {
                 const existMsg = await ctx.reply(`⚠️ <b>Topik/Grup ini sudah terdaftar.</b>`, { parse_mode: 'HTML' });
@@ -55,18 +61,17 @@ module.exports = {
                 return;
             }
 
-            // Simpan Data Lengkap
             db.groups.push({
                 id: chatId,
-                name: chatTitle,        // Nama Grup
-                topic_id: topicId,      // ID Topik / Thread ID
-                topic_name: topicName,  // Nama Topik yang ditangkap
+                name: chatTitle,
+                topic_id: topicId,
+                topic_name: topicName,
                 added_at: new Date().toISOString()
             });
 
             await ctx.db.set('seit_bot_db', JSON.stringify(db));
 
-            // 3. Respon Berhasil Estetik
+            // 4. Respon Berhasil Estetik
             const successMsg = await ctx.reply(
                 `╭───  <b>REGISTRATION SUCCESS</b>\n` +
                 `│\n` +
@@ -79,7 +84,7 @@ module.exports = {
                 { parse_mode: 'HTML' }
             );
 
-            // --- AUTO DELETE 3 DETIK ---
+            // AUTO DELETE 3 DETIK
             setTimeout(() => {
                 ctx.telegram.deleteMessage(ctx.chat.id, successMsg.message_id).catch(() => {});
                 ctx.deleteMessage().catch(() => {});
