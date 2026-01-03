@@ -68,6 +68,8 @@ async function main() {
         console.log('🚀 SEIT System Online & Log sent to Owner');
 
         // 3. Jalankan Bot Telegram
+        await bot.telegram.deleteWebhook({ drop_pending_updates: true });
+        console.log('🧹 Sisa koneksi lama dibersihkan...');
         await bot.launch({
             allowedUpdates: ['message', 'chat_member', 'new_chat_members', 'callback_query']
         });
